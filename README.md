@@ -16,9 +16,7 @@ import SharedDataLoader from 'shared-dataloader';
 const sharedDataLoader = new SharedDataLoader({PROD, onShare: '_share', ttl: 5000});
 
 ```
-- `PROD`: true if running in production (don't show warnings). Defaults to false.
-- `onShare`: The name of the method in your dataloader object to call when you call `share()`. 
-- `ttl`: time to live (ms). Smaller number means less memory usage. 100-5000 is reasonable.
+
 
 ### 2. Add it to your query/mutation context. Call dispose after it's completed.
 
@@ -27,13 +25,11 @@ import DataLoader from 'dataloader';
 import {graphql} from 'graphql';
 
 const allMyDataLoaders = {todos: new DataLoader(todoBatchFn)};
-const getDataLoader = sharedDataLoader.add(allMyDataLoaders);
-const dataLoader = getDataLoader();
-const result = await graphql(schema, query, {}, {getDataLoader}, variables);
+const dataLoader = sharedDataLoader.add(allMyDataLoaders);
+const result = await graphql(schema, query, {}, {dataLoader}, variables);
 dataLoader.dispose();
 
 ```
-Note: `dispose`, `share`, and `useShared` will be injected onto `allMyDataLoaders` so don't use those names.
 
 ### 3. Add it to your subscription context. Call dispose after the subscription ends.
 ```js
@@ -41,9 +37,8 @@ import {subscribe} from 'graphql';
 
 // Important! Note {cache: false}. You should already have been doing this since subs are long lived.
 const allMyDataLoaders = {todos: new DataLoader(todoBatchFn, {cache: false})};
-const getDataLoader = sharedDataLoader.add(allMyDataLoaders);
-const dataLoader = getDataLoader();
-const asyncIterator = await subscribe(schema, document, {}, {getDataLoader}, variables);
+const dataLoader = sharedDataLoader.add(allMyDataLoaders);
+const asyncIterator = await subscribe(schema, document, {}, {dataLoader}, variables);
 await forAwaitEach(asyncIterator, iterableCb);
 dataLoader.dispose();
 ```
@@ -51,16 +46,16 @@ dataLoader.dispose();
 ### 4. Share the ID when you push to the pubsub
 ```js
 // UpdateTodo.js
-resolve(source, args, {getDataLoader}) {
+resolve(source, args, {dataLoader}) {
   const updatedTodo = db.update({foo: 'bar'});
-  const operationId = getDataLoader().share();
+  const operationId = dataLoader.share();
   pubsub.publish('updatedTodo', {updatedTodo, operationId})
 }
 ```
 
-### 5. Use the shared ID in your subscription iterator
+### 5. Use the shared ID in your subscription iterator and unsub when the sub closes
 ```js
-async subscribe(source, args, {getDataLoader}) {
+async subscribe(source, args, {dataLoader}) {
   const asyncIterator = pubsub.asyncIterator('updatedTodo');
   const getNextPromise = async () => {
     const nextRes = await asyncIterator.next();
@@ -69,34 +64,56 @@ async subscribe(source, args, {getDataLoader}) {
       return asyncIterator.return();
     }
     if (value.operationId) {
-      getDataLoader({self: true}).useShared(value.operationId);
+      dataLoader.useShared(value.operationId);
     }
     return nextRes;
   };
   return {
     next() {
       return getNextPromise();   
+    },
+    return() {
+      dataLoader.dispose();
+      return asyncIterator.return();
     }
   }
 }
 ```
 
-### 6. Use the dataloader just like normal:
+### 6. Use the dataloader `getter` method to get individual loaders:
 
 ```js
 todos: {
-  resolve: (source, args, {getDataLoader}) {
-    return getDataLoader().todos.load(source.id)
+  resolve: (source, args, {dataLoader}) {
+    return dataLoader.get('todos').load(source.id)
   }
 }
 ```
 
-## `onShare`
+# API
 
-You dataloader object (see `allMyDataLoaders` above) is probably not a POJO.
-It's probably a class that is instantiated with an authToken.
-To remove the authToken before it gets shared, write a method to delete it & any sensitive info.
-Then, pass in that method name to `onShare` like in Step 1.
+The SharedDataLoader takes the following args
+
+- `PROD`: true if running in production (don't show warnings). Defaults to false.
+- `ttl`: time to live (ms). Smaller number means less memory usage. 100-5000 is reasonable.
+- `onShare`: The name of the method in your dataloader object to call when you call `share()`. 
+Use this to sanitize your dataloader of any sensitive info that might have been provided to it (such as an auth token)
+This is not required, but provides peace of mind if you're unsure about your schema authorization.
+
+THe SharedDataLoader has a single public method:
+
+- `add(allMyLoaders)`: Call this with an object containing all your loaders. It returns a ShareableDataLoader.
+
+The ShareableDataLoader (the result of SharedDataLoader#add) has the following API
+
+- `dispose(options)`: dispose of the data loader if it is not being shared. It has the following option:
+  - `force`: boolean, defaults to false. 
+  If true, calling dispose will dispose of the dataloader even if it is being shared.
+- `share`: Returns a unique ID to be fed to `useShared`. Also begins the ttl.
+- `useShared(operationId)`: Replaces the current dataloader with the dataloader belonging to the `operationId`.
+You'll want to call this on your subscription with the `operationId` that comes from the mutation
+- `getID`: returns the ID of the current dataloader. Useful for testing.
+- `isShared`: returns true if the dataloader is currently being shared. Useful for testing.
 
 ## License
 

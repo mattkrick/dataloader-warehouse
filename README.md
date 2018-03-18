@@ -1,13 +1,14 @@
 # shared-dataloader
 A class for sharing dataloaders across GraphQL subscriptions
 
-##Installation
+## Installation
 `yarn add shared-dataloader`
 
 ## What's it do
-Allows you to use the same dataloader for multiple GraphQL subscription clients
+Allows you to use the same dataloader for multiple GraphQL subscription clients.
+If you think of a mutation as a single operation, this allows you to share data across that operation.
 
-##Usage
+## Usage
 
 ### 1. Create it on your GraphQL server
 
@@ -100,7 +101,7 @@ The SharedDataLoader takes the following args
 Use this to sanitize your dataloader of any sensitive info that might have been provided to it (such as an auth token)
 This is not required, but provides peace of mind if you're unsure about your schema authorization.
 
-THe SharedDataLoader has a single public method:
+The SharedDataLoader has a single public method:
 
 - `add(allMyLoaders)`: Call this with an object containing all your loaders. It returns a ShareableDataLoader.
 
@@ -109,7 +110,9 @@ The ShareableDataLoader (the result of SharedDataLoader#add) has the following A
 - `dispose(options)`: dispose of the data loader if it is not being shared. It has the following option:
   - `force`: boolean, defaults to false. 
   If true, calling dispose will dispose of the dataloader even if it is being shared.
-- `share`: Returns a unique ID to be fed to `useShared`. Also begins the ttl.
+- `share(ttl)`: Returns a unique ID to be fed to `useShared`. Also begins the TTL. 
+Although strongly discouraged, you may provide a TTL here to override the one defined by the `SharedDataLoader`.
+This is useful if you need to extend the time because you are making an external API call, or using `setTimeout`.
 - `useShared(operationId)`: Replaces the current dataloader with the dataloader belonging to the `operationId`.
 You'll want to call this on your subscription with the `operationId` that comes from the mutation
 - `getID`: returns the ID of the current dataloader. Useful for testing.

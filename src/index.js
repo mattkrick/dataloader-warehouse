@@ -52,13 +52,13 @@ class ShareableDataLoader {
    *
    */
 
-  share() {
+  share(ttl = this.parent._ttl) {
     const store = this.parent._getStore(this.operationId);
     if (!store) {
       throw new Error(`${this.operationId} has already been disposed`)
     }
     this.sanitize();
-    setTimeout(this.parent._dispose, this.parent._ttl, this.operationId);
+    setTimeout(this.parent._dispose, ttl, this.operationId);
     store.shared = true;
     return this.operationId;
   }

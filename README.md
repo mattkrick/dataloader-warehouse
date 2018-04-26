@@ -1,23 +1,32 @@
-# shared-dataloader
-A class for sharing dataloaders across GraphQL subscriptions
+# dataloader-warehouse
+Enables DataLoader for GraphQL subscriptions
 
 ## Installation
-`yarn add shared-dataloader`
+`yarn add dataloader-warehouse`
 
-## What's it do
-Allows you to use the same dataloader for multiple GraphQL subscription clients.
-If you think of a mutation as a single operation, this allows you to share data across that operation.
+## The Problem
+A typical data loader is created at the beginning of a mutation
+and disposed of after it returns.
+This is a best practice to reduce security concerns and to avoid stale data. 
+Unfortunately, it isn't possible with subscriptions since they are long-lived.
+The current workaround is to turn off the dataLoader cache, which is horribly inefficient.
+This package allows you to use the same dataLoader for your mutation and subscription payloads,
+when safe to do so.
+
+## Nomenclature
+- dataLoader: an instance created by the DataLoader class
+- dataLoaderBase: an object where each key is a dataLoader
+- dataLoaderWarehouse: an object where each key is a dataLoaderBase
 
 ## Usage
 
 ### 1. Create it on your GraphQL server
 
 ```js
-import SharedDataLoader from 'shared-dataloader';
-const sharedDataLoader = new SharedDataLoader({PROD, onShare: '_share', ttl: 5000});
+import DataLoaderWarehouse from 'dataloader-warehouse';
+const dataLoaderWarehouse = new DataLoaderWarehouse({onShare: '_share', ttl: 5000});
 
 ```
-
 
 ### 2. Add it to your query/mutation context. Call dispose after it's completed.
 
@@ -25,38 +34,37 @@ const sharedDataLoader = new SharedDataLoader({PROD, onShare: '_share', ttl: 500
 import DataLoader from 'dataloader';
 import {graphql} from 'graphql';
 
-const allMyDataLoaders = {todos: new DataLoader(todoBatchFn)};
-const dataLoader = sharedDataLoader.add(allMyDataLoaders);
-const result = await graphql(schema, query, {}, {dataLoader}, variables);
-dataLoader.dispose();
-
+const dataLoaderBase = {todos: new DataLoader(todoBatchFn)};
+const warehouseWorker = dataLoaderWarehouse.add(dataLoaderBase);
+const result = await graphql(schema, query, {}, {warehouseWorker}, variables);
+warehouseWorker.dispose();
 ```
 
 ### 3. Add it to your subscription context. Call dispose after the subscription ends.
 ```js
 import {subscribe} from 'graphql';
 
-// Important! Note {cache: false}. You should already have been doing this since subs are long lived.
-const allMyDataLoaders = {todos: new DataLoader(todoBatchFn, {cache: false})};
-const dataLoader = sharedDataLoader.add(allMyDataLoaders);
-const asyncIterator = await subscribe(schema, document, {}, {dataLoader}, variables);
+// Important! Note {cache: false}. You should already have been doing this since subs are long-lived.
+const dataLoaderBase = {todos: new DataLoader(todoBatchFn, {cache: false})};
+const warehouseWorker = dataLoaderWarehouse.add(dataLoaderBase);
+const asyncIterator = await subscribe(schema, document, {}, {warehouseWorker}, variables);
 await forAwaitEach(asyncIterator, iterableCb);
-dataLoader.dispose();
+warehouseWorker.dispose();
 ```
 
 ### 4. Share the ID when you push to the pubsub
 ```js
 // UpdateTodo.js
-resolve(source, args, {dataLoader}) {
+resolve(source, args, {warehouseWorker}) {
   const updatedTodo = db.update({foo: 'bar'});
-  const operationId = dataLoader.share();
+  const operationId = warehouseWorker.share();
   pubsub.publish('updatedTodo', {updatedTodo, operationId})
 }
 ```
 
-### 5. Use the shared ID in your subscription iterator and unsub when the sub closes
+### 5. Use the operationId in your subscription iterator and unsub when the sub closes
 ```js
-async subscribe(source, args, {dataLoader}) {
+async subscribe(source, args, {warehouseWorker}) {
   const asyncIterator = pubsub.asyncIterator('updatedTodo');
   const getNextPromise = async () => {
     const nextRes = await asyncIterator.next();
@@ -65,7 +73,7 @@ async subscribe(source, args, {dataLoader}) {
       return asyncIterator.return();
     }
     if (value.operationId) {
-      dataLoader.useShared(value.operationId);
+      warehouseWorker.useShared(value.operationId);
     }
     return nextRes;
   };
@@ -74,49 +82,53 @@ async subscribe(source, args, {dataLoader}) {
       return getNextPromise();   
     },
     return() {
-      dataLoader.dispose();
+      warehouseWorker.dispose({force: true});
       return asyncIterator.return();
     }
   }
 }
 ```
 
-### 6. Use the dataloader `getter` method to get individual loaders:
+### 6. Use `warehouseWorker.get` method to get individual loaders:
 
 ```js
-todos: {
-  resolve: (source, args, {dataLoader}) {
-    return dataLoader.get('todos').load(source.id)
+todo: {
+  type: Todo,
+  resolve: (source, args, {warehouseWorker}) {
+    // before
+    // return dataLoaderBase.todos.load(source.id) 
+    
+    // after
+    return warehouseWorker.get('todos').load(source.id)
   }
 }
 ```
 
 # API
 
-The SharedDataLoader takes the following args
+The DataLoaderWarehouse takes the following args
 
-- `PROD`: true if running in production (don't show warnings). Defaults to false.
 - `ttl`: time to live (ms). Smaller number means less memory usage. 100-5000 is reasonable.
-- `onShare`: The name of the method in your dataloader object to call when you call `share()`. 
-Use this to sanitize your dataloader of any sensitive info that might have been provided to it (such as an auth token)
+- `onShare`: The name of the method in your dataLoaderBase to call when you call `share()`. 
+Use this to sanitize your dataLoaderBase of any sensitive info that might have been provided to it (such as an auth token)
 This is not required, but provides peace of mind if you're unsure about your schema authorization.
 
-The SharedDataLoader has a single public method:
+The dataLoaderWarehouse instance has a single public method:
 
-- `add(allMyLoaders)`: Call this with an object containing all your loaders. It returns a ShareableDataLoader.
+- `add(dataLoaderBase)`: Call this with an object containing all your loaders. It returns a WarehouseWorker.
 
-The ShareableDataLoader (the result of SharedDataLoader#add) has the following API
+The WarehouseWorker (the result of DataLoaderWarehouse#add) has the following methods:
 
-- `dispose(options)`: dispose of the data loader if it is not being shared. It has the following option:
+- `dispose(options)`: dispose of the data loader if it is not being shared. Options include:
   - `force`: boolean, defaults to false. 
-  If true, calling dispose will dispose of the dataloader even if it is being shared.
+  If true, calling dispose will dispose of the dataLoaderBase even if it is being shared.
 - `share(ttl)`: Returns a unique ID to be fed to `useShared`. Also begins the TTL. 
-Although strongly discouraged, you may provide a TTL here to override the one defined by the `SharedDataLoader`.
+Although strongly discouraged, you may provide a TTL here to override the one defined by the `DataLoaderWarehouse`.
 This is useful if you need to extend the time because you are making an external API call, or using `setTimeout`.
-- `useShared(operationId)`: Replaces the current dataloader with the dataloader belonging to the `operationId`.
-You'll want to call this on your subscription with the `operationId` that comes from the mutation
-- `getID`: returns the ID of the current dataloader. Useful for testing.
-- `isShared`: returns true if the dataloader is currently being shared. Useful for testing.
+- `useShared(operationId)`: Replaces the current dataLoaderBase with the dataLoaderBase belonging to the `operationId`.
+You'll want to pass in the `operationId` provided by the publishing mutation
+- `getID`: returns the ID of the current dataLoaderBase. Useful for testing.
+- `isShared`: returns true if the dataLoaderBase is currently being shared. Useful for testing.
 
 ## License
 

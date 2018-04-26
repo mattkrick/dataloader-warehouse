@@ -1,6 +1,6 @@
 const MAX_INT = 2147483647;
 
-class ShareableDataLoader {
+class WarehouseWorker {
   constructor(parent, operationId, sanitizer) {
     this.parent = parent;
     this.operationId = operationId;
@@ -8,8 +8,8 @@ class ShareableDataLoader {
   }
 
   /*
-   * A method to dispose of any unshared dataloader
-   * If you'd like to dispose of shared dataloaders, set force to `true`
+   * A method to dispose of any unshared dataLoader
+   * If you'd like to dispose of shared dataLoaders, set force to `true`
    */
   dispose(options = {}) {
     const {force} = options;
@@ -17,17 +17,16 @@ class ShareableDataLoader {
       this.parent._dispose(this.operationId);
     } else {
       const store = this.parent._getStore(this.operationId);
-      // check for store so we don't bork the app in production
       if (store && !store.shared) {
         this.parent._dispose(this.operationId);
       }
     }
   }
 
-  get(fetcher) {
+  get(dataLoaderName) {
     const storeId = this.parent.warehouseLookup[this.operationId] || this.operationId;
     const store = this.parent._getStore(storeId);
-    return store.dataloader[fetcher];
+    return store.dataLoaderBase[dataLoaderName];
   }
 
   getID() {
@@ -35,7 +34,8 @@ class ShareableDataLoader {
   }
 
   isShared() {
-    return this.parent._getStore(this.operationId).shared;
+    const store = this.parent._getStore(this.operationId);
+    return store ? store.shared : null;
   }
 
   sanitize() {
@@ -46,7 +46,7 @@ class ShareableDataLoader {
 
   /*
    * Sharing should do 3 things:
-   * 1. A dataloader-specific sanitization (ie remove authToken), as defined by options.share
+   * 1. A dataLoaderBase-specific sanitization (ie remove authToken), as defined by options.share
    * 2. Establish a TTL on the shared component, since it won't be cleaned up otherwise
    * 3. return a serializable key that a client can use with useShared
    *
@@ -55,7 +55,10 @@ class ShareableDataLoader {
   share(ttl = this.parent._ttl) {
     const store = this.parent._getStore(this.operationId);
     if (!store) {
-      throw new Error(`${this.operationId} has already been disposed`)
+      if (!this.parent.PROD) {
+        throw new Error('dataLoaderBase not found! You called shared after it was disposed');
+      }
+      return null;
     }
     this.sanitize();
     setTimeout(this.parent._dispose, ttl, this.operationId);
@@ -67,23 +70,27 @@ class ShareableDataLoader {
    * By default, we use the this.operationId. When this.parent is called, it points to another this.operationId.
    */
   useShared(mutationOpId) {
-    if (!this.parent.PROD) {
-      const mutationStore = this.parent._getStore(mutationOpId);
-      if (!mutationStore.shared) {
-        throw new Error('Invalid access to unshared dataloader. First call dataLoader.share() in your mutation.');
+    const mutationStore = this.parent._getStore(mutationOpId);
+    if (!mutationStore) {
+      this.parent.warehouseLookup[this.operationId] = this.operationId;
+      if (!this.parent.PROD) {
+        console.warn('Mutation dataLoaderBase was already disposed!')
       }
+    } else if (!mutationStore.shared) {
+      throw new Error('Invalid access to unshared dataloader. First call dataLoader.share() in your mutation.');
+    } else {
+      this.parent.warehouseLookup[this.operationId] = mutationOpId;
     }
-    this.parent.warehouseLookup[this.operationId] = mutationOpId;
   }
 }
 
-export default class sharedDataLoader {
+export default class DataLoaderWarehouse {
   constructor(options = {}) {
-    const {ttl, PROD, onShare} = options;
+    const {ttl, onShare} = options;
     if (isNaN(Number(ttl)) || ttl <= 0 || ttl > MAX_INT) {
       throw new Error(`ttl must be positive and no greater than ${MAX_INT}`);
     }
-    this.PROD = PROD;
+    this.PROD = process.env.NODE_ENV === 'production';
     this._ttl = ttl;
     this._onShare = onShare;
     this.opId = 0;
@@ -99,18 +106,18 @@ export default class sharedDataLoader {
   _getStore(operationId) {
     const store = this.warehouse[operationId];
     if (!store && !this.PROD) {
-      throw new Error('Dataloader not found! Perhaps you disposed early or your ttl is too short?');
+      throw new Error('dataLoaderBase not found! Perhaps you disposed early or your ttl is too short?');
     }
     return store;
   }
 
-  add(dataloader) {
+  add(dataLoaderBase) {
     const operationId = this.opId++;
     this.warehouse[operationId] = {
-      dataloader,
+      dataLoaderBase,
       shared: false
     };
-    const sanitizer = this.onShare && dataloader[this._onShare];
-    return new ShareableDataLoader(this, operationId, sanitizer);
+    const sanitizer = this.onShare && dataLoaderBase[this._onShare];
+    return new WarehouseWorker(this, operationId, sanitizer);
   }
 }

@@ -1,7 +1,7 @@
 {
-  "name": "shared-dataloader",
-  "version": "0.2.0",
-  "description": "A class for sharing dataloaders across GraphQL subscriptions",
+  "name": "dataloader-warehouse",
+  "version": "0.3.0",
+  "description": "Enables DataLoader for GraphQL subscriptions",
   "main": "./lib/index.js",
   "scripts": {
     "clean": "rimraf lib",
@@ -11,19 +11,19 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mattkrick/shared-dataloader.git"
+    "url": "git+https://github.com/mattkrick/dataloader-warehouse.git"
   },
   "keywords": [
     "react",
-    "Stripe",
-    "async"
+    "graphql",
+    "dataloader"
   ],
   "author": "Matt Krick <matt.krick@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/mattkrick/shared-dataloader/issues"
+    "url": "https://github.com/mattkrick/dataloader-warehouse/issues"
   },
-  "homepage": "https://github.com/mattkrick/shared-dataloader#readme",
+  "homepage": "https://github.com/mattkrick/dataloader-warehouse#readme",
   "devDependencies": {
     "babel-cli": "^6.10.1",
     "babel-preset-es2015": "^6.9.0",

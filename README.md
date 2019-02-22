@@ -24,7 +24,7 @@ when safe to do so.
 
 ```js
 import DataLoaderWarehouse from 'dataloader-warehouse';
-const dataLoaderWarehouse = new DataLoaderWarehouse({onShare: '_share', ttl: 5000});
+const dataLoaderWarehouse = new DataLoaderWarehouse({onShare: '_share', ttl: 2000});
 
 ```
 
@@ -119,14 +119,13 @@ The dataLoaderWarehouse instance has a single public method:
 
 The WarehouseWorker (the result of DataLoaderWarehouse#add) has the following methods:
 
-- `dispose(options)`: dispose of the data loader if it is not being shared. Options include:
+- `dispose(options)`: schedule the dataloader to be disposed.
   - `force`: boolean, defaults to false. 
-  If true, calling dispose will dispose of the dataLoaderBase even if it is being shared.
-- `share(ttl)`: Returns a unique ID to be fed to `useShared`. Also begins the TTL. 
-Although strongly discouraged, you may provide a TTL here to override the one defined by the `DataLoaderWarehouse`.
-This is useful if you need to extend the time because you are making an external API call, or using `setTimeout`.
+  If true, calling dispose will dispose of the dataLoaderBase immediately.
+  If falsy, the dataloader will be disposed in the next tick (if not shared) or after the ttl (if shared)
+- `share()`: Returns a unique ID to be fed to `useShared`.
 - `useShared(operationId)`: Replaces the current dataLoaderBase with the dataLoaderBase belonging to the `operationId`.
-You'll want to pass in the `operationId` provided by the publishing mutation
+You'll want to pass in the `operationId` provided by the publishing mutation.
 - `getID`: returns the ID of the current dataLoaderBase. Useful for testing.
 - `isShared`: returns true if the dataLoaderBase is currently being shared. Useful for testing.
 

@@ -4,7 +4,7 @@ interface DisposeOptions {
   force?: boolean
 }
 
-class WarehouseWorker {
+class WarehouseWorker<T> {
   parent: DataLoaderWarehouse
   operationId: number
   sanitizer?: () => void
@@ -35,11 +35,11 @@ class WarehouseWorker {
     }
   }
 
-  get (dataLoaderName: string) {
+  get (dataLoaderName: keyof T) {
     const storeId =
       this.parent.warehouseLookup[this.operationId] || this.operationId
     const store = this.parent._getStore(storeId)
-    return store.dataLoaderBase[dataLoaderName]
+    return (store.dataLoaderBase as T)[dataLoaderName]
   }
 
   getID () {
@@ -145,13 +145,13 @@ export default class DataLoaderWarehouse {
     return store
   }
 
-  add (dataLoaderBase: DataLoaderBase) {
+  add<T extends DataLoaderBase> (dataLoaderBase: T) {
     const operationId = this.opId++
     this.warehouse[operationId] = {
       dataLoaderBase,
       shared: false
     }
     const sanitizer = this._onShare && dataLoaderBase[this._onShare]
-    return new WarehouseWorker(this, operationId, sanitizer)
+    return new WarehouseWorker<T>(this, operationId, sanitizer)
   }
 }

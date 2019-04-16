@@ -1,13 +1,13 @@
 interface DisposeOptions {
     force?: boolean;
 }
-declare class WarehouseWorker {
+declare class WarehouseWorker<T> {
     parent: DataLoaderWarehouse;
     operationId: number;
     sanitizer?: () => void;
     constructor(parent: DataLoaderWarehouse, operationId: number, sanitizer?: () => void);
     dispose(options?: DisposeOptions): void;
-    get(dataLoaderName: string): any;
+    get(dataLoaderName: keyof T): T[keyof T];
     getID(): number;
     isShared(): boolean;
     sanitize(): void;
@@ -41,7 +41,7 @@ export default class DataLoaderWarehouse {
     constructor(options: Options);
     _dispose: (operationId: number) => void;
     _getStore(operationId: number): Store;
-    add(dataLoaderBase: DataLoaderBase): WarehouseWorker;
+    add<T extends DataLoaderBase>(dataLoaderBase: T): WarehouseWorker<T>;
 }
 export {};
 //# sourceMappingURL=index.d.ts.map

@@ -65,6 +65,7 @@ class WarehouseWorker {
         }
     }
 }
+exports.WarehouseWorker = WarehouseWorker;
 class DataLoaderWarehouse {
     constructor(options) {
         this.PROD = process.env.NODE_ENV === 'production';

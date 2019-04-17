@@ -4,7 +4,7 @@ interface DisposeOptions {
   force?: boolean
 }
 
-class WarehouseWorker<T> {
+export class WarehouseWorker<T> {
   parent: DataLoaderWarehouse
   operationId: number
   sanitizer?: () => void
@@ -35,7 +35,7 @@ class WarehouseWorker<T> {
     }
   }
 
-  get (dataLoaderName: keyof T) {
+  get<K extends keyof T> (dataLoaderName: K) {
     const storeId =
       this.parent.warehouseLookup[this.operationId] || this.operationId
     const store = this.parent._getStore(storeId)

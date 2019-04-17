@@ -1,13 +1,13 @@
 interface DisposeOptions {
     force?: boolean;
 }
-declare class WarehouseWorker<T> {
+export declare class WarehouseWorker<T> {
     parent: DataLoaderWarehouse;
     operationId: number;
     sanitizer?: () => void;
     constructor(parent: DataLoaderWarehouse, operationId: number, sanitizer?: () => void);
     dispose(options?: DisposeOptions): void;
-    get(dataLoaderName: keyof T): T[keyof T];
+    get<K extends keyof T>(dataLoaderName: K): T[K];
     getID(): number;
     isShared(): boolean;
     sanitize(): void;

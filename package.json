@@ -1,6 +1,6 @@
 {
   "name": "dataloader-warehouse",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Enables DataLoader for GraphQL subscriptions",
   "main": "./dist/lib/index.js",
   "typings": "dist/types/index.d.ts",
@@ -41,6 +41,6 @@
     "tslint": "^5.11.0",
     "tslint-config-prettier": "^1.14.0",
     "tslint-config-standard": "^8.0.1",
-    "typescript": "^3.0.1"
+    "typescript": "^3.4.3"
   }
 }

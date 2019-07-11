@@ -36,9 +36,10 @@ export class WarehouseWorker<T> {
   }
 
   get<K extends keyof T> (dataLoaderName: K) {
-    const storeId =
-      this.parent.warehouseLookup[this.operationId] || this.operationId
-    const store = this.parent._getStore(storeId)
+    const peerOperationId = this.parent.warehouseLookup[this.operationId]
+    const store =
+      this.parent._getStore(peerOperationId) ||
+      this.parent._getStore(this.operationId)
     return (store.dataLoaderBase as T)[dataLoaderName]
   }
 
@@ -57,7 +58,7 @@ export class WarehouseWorker<T> {
     }
   }
 
-  share () {
+  share (ttl?: number) {
     const store = this.parent._getStore(this.operationId)
     if (!store) {
       if (!this.parent.PROD) {
@@ -67,6 +68,10 @@ export class WarehouseWorker<T> {
       }
       return null
     }
+    if (ttl) {
+      this.parent._setTTL(ttl)
+    }
+
     this.sanitize()
 
     store.shared = true
@@ -116,20 +121,23 @@ interface Store {
 
 export default class DataLoaderWarehouse {
   PROD = process.env.NODE_ENV === 'production'
-  _ttl: number
+  _ttl!: number
   _onShare?: string
   opId = 0
   warehouse: Warehouse = {}
   warehouseLookup: WarehouseLookup = {}
   constructor (options: Options) {
     const { ttl, onShare } = options
+    this._onShare = onShare
+    this._setTTL(ttl)
+  }
+
+  _setTTL (ttl: number) {
     if (!ttl || isNaN(Number(ttl)) || ttl <= 0 || ttl > MAX_INT) {
       throw new Error(`ttl must be positive and no greater than ${MAX_INT}`)
     }
     this._ttl = ttl
-    this._onShare = onShare
   }
-
   _dispose = (operationId: number) => {
     delete this.warehouse[operationId]
     delete this.warehouseLookup[operationId]

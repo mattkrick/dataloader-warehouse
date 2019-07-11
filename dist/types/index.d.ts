@@ -11,7 +11,7 @@ export declare class WarehouseWorker<T> {
     getID(): number;
     isShared(): boolean;
     sanitize(): void;
-    share(): number | null;
+    share(ttl?: number): number | null;
     useShared(mutationOpId: number): void;
 }
 interface Options {
@@ -39,6 +39,7 @@ export default class DataLoaderWarehouse {
     warehouse: Warehouse;
     warehouseLookup: WarehouseLookup;
     constructor(options: Options);
+    _setTTL(ttl: number): void;
     _dispose: (operationId: number) => void;
     _getStore(operationId: number): Store;
     add<T extends DataLoaderBase>(dataLoaderBase: T): WarehouseWorker<T>;

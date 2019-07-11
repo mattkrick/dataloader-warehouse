@@ -21,8 +21,9 @@ class WarehouseWorker {
         }
     }
     get(dataLoaderName) {
-        const storeId = this.parent.warehouseLookup[this.operationId] || this.operationId;
-        const store = this.parent._getStore(storeId);
+        const peerOperationId = this.parent.warehouseLookup[this.operationId];
+        const store = this.parent._getStore(peerOperationId) ||
+            this.parent._getStore(this.operationId);
         return store.dataLoaderBase[dataLoaderName];
     }
     getID() {
@@ -37,13 +38,16 @@ class WarehouseWorker {
             this.sanitizer();
         }
     }
-    share() {
+    share(ttl) {
         const store = this.parent._getStore(this.operationId);
         if (!store) {
             if (!this.parent.PROD) {
                 throw new Error('dataLoaderBase not found! You called shared after it was disposed');
             }
             return null;
+        }
+        if (ttl) {
+            this.parent._setTTL(ttl);
         }
         this.sanitize();
         store.shared = true;
@@ -77,11 +81,14 @@ class DataLoaderWarehouse {
             delete this.warehouseLookup[operationId];
         };
         const { ttl, onShare } = options;
+        this._onShare = onShare;
+        this._setTTL(ttl);
+    }
+    _setTTL(ttl) {
         if (!ttl || isNaN(Number(ttl)) || ttl <= 0 || ttl > MAX_INT) {
             throw new Error(`ttl must be positive and no greater than ${MAX_INT}`);
         }
         this._ttl = ttl;
-        this._onShare = onShare;
     }
     _getStore(operationId) {
         const store = this.warehouse[operationId];

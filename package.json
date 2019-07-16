@@ -1,6 +1,6 @@
 {
   "name": "dataloader-warehouse",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "Enables DataLoader for GraphQL subscriptions",
   "main": "./dist/lib/index.js",
   "typings": "dist/types/index.d.ts",

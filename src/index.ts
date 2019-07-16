@@ -144,13 +144,7 @@ export default class DataLoaderWarehouse {
   }
 
   _getStore (operationId: number) {
-    const store = this.warehouse[operationId]
-    if (!store && !this.PROD) {
-      throw new Error(
-        'dataLoaderBase not found! Perhaps you disposed early or your ttl is too short?'
-      )
-    }
-    return store
+    return this.warehouse[operationId]
   }
 
   add<T extends DataLoaderBase> (dataLoaderBase: T) {

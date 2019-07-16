@@ -91,11 +91,7 @@ class DataLoaderWarehouse {
         this._ttl = ttl;
     }
     _getStore(operationId) {
-        const store = this.warehouse[operationId];
-        if (!store && !this.PROD) {
-            throw new Error('dataLoaderBase not found! Perhaps you disposed early or your ttl is too short?');
-        }
-        return store;
+        return this.warehouse[operationId];
     }
     add(dataLoaderBase) {
         const operationId = this.opId++;
